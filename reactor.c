@@ -17,17 +17,15 @@
 
 #define BUFFER_LENGTH		512
 
+//	RCALLBACK 是一个函数指针类型
+//	指向的函数接收一个 int 类型的参数，返回一个 int 类型的值
 typedef int (*RCALLBACK)(int fd);
 
-// listenfd
-// EPOLLIN --> 
 int accept_cb(int fd);
-// clientfd
-// 
 int recv_cb(int fd);
 int send_cb(int fd);
 
-// conn, fd, buffer, callback
+//	conn_item:代表与一个客户端的连接
 struct conn_item {
 	int fd;
 	
@@ -36,21 +34,21 @@ struct conn_item {
 	char wbuffer[BUFFER_LENGTH];
 	int wlen;
 
+	//	union 的作用是让 accept_callback和recv_callback共享内存空间
 	union {
 		RCALLBACK accept_callback;
 		RCALLBACK recv_callback;
 	} recv_t;
+
 	RCALLBACK send_callback;
 };
-// libevent --> 
 
 
 int epfd = 0;
 struct conn_item connlist[1048576] = {0}; // 1024  2G     2 * 512 * 1024 * 1024 
-// list
+
 struct timeval zvoice_king;
-// 
-// 1000000
+
 
 #define TIME_SUB_MS(tv1, tv2)  ((tv1.tv_sec - tv2.tv_sec) * 1000 + (tv1.tv_usec - tv2.tv_usec) / 1000)
 
@@ -107,7 +105,7 @@ int accept_cb(int fd) {
 	return clientfd;
 }
 
-int recv_cb(int fd) { // fd --> EPOLLIN
+int recv_cb(int fd) { 
 
 	char *buffer = connlist[fd].rbuffer;
 	int idx = connlist[fd].rlen;
@@ -174,7 +172,7 @@ int init_server(unsigned short port) {
 	return sockfd;
 }
 
-// tcp 
+
 int main() {
 
 	int port_count = 20;

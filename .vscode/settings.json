@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "socket.h": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "in.h": "c"
     }
 }
