@@ -2,6 +2,8 @@
     "files.associations": {
         "socket.h": "c",
         "algorithm": "c",
-        "in.h": "c"
+        "in.h": "c",
+        "errno.h": "c",
+        "unistd.h": "c"
     }
 }

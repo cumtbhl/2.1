@@ -7,10 +7,12 @@
 #include <pthread.h>
 #include <sys/poll.h>
 #include <sys/epoll.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/time.h>
 
-#define BUFFER_LENGTH 512
-#define TIME_SUB_MS(tv1, tv2) ((tv1.tv_sec - tv2.tv_sec) * 1000 + (tv1.tv_usec - tv2.tv_usec) / 1000)
+#define BUFFER_LENGTH 1024
 
 typedef int(*RCALLBACK)(int fd);
 
@@ -36,9 +38,45 @@ struct conn_item{
 };
 
 int epfd = 0;
-struct conn_item connlist[1048576] = {0};
-struct timeval zvoice_king;
+struct conn_item connlist[1024] = {0};
 
+typedef struct conn_item connection_t;
+
+int http_request(connection_t* conn){
+	//解析客户端的请求
+	return 0;
+}
+
+int http_response(connection_t* conn){
+# if 1
+	//返回固定的内容给客户端
+	conn->wlen = sprintf(conn->wbuffer, 
+		"HTTP/1.1 200 OK\r\n"
+		"Accept-Ranges: bytes\r\n"
+		"Content-Length: 82\r\n"
+		"Content-Type: text/html\r\n"
+		"Date: Sat, 06 Aug 2023 13:16:46 GMT\r\n\r\n"
+		"<html><head><title>0voice.king</title></head><body><h1>King</h1></body></html>\r\n\r\n");
+	
+	return conn->wlen;	
+
+#elif 0
+	//返回执行的内容给客户端
+	int filefd = open("test.html", O_RDONLY);
+	struct stat stat_buf;
+	fstat(filefd, &stat_buf);
+	conn->wlen = sprintf(conn->wbuffer, 
+		"HTTP/1.1 200 OK\r\n"
+		"Accept-Ranges: bytes\r\n"
+		"Content-Length: %ld\r\n"
+		"Content-Type: text/html\r\n"
+		"Date: Sat, 06 Aug 2023 13:16:46 GMT\r\n\r\n", stat_buf.st_size);
+	
+	int count = read(filefd, conn->wbuffer + conn->wlen, BUFFER_LENGTH-conn->wlen);
+	conn->wlen += count;
+	return conn->wlen;
+#endif
+}
 
 //  1.add 0.modify
 int set_event(int fd, int event, int flag){
@@ -78,16 +116,6 @@ int accept_cb(int fd){
 
     connlist[clientfd].send_callback = send_cb;
 
-    if((clientfd % 1000 == 999)){
-        struct timeval tv_cur;
-        gettimeofday(&tv_cur, NULL);
-        int time_used = TIME_SUB_MS(tv_cur, zvoice_king);
-
-        memcpy(&zvoice_king, &tv_cur, sizeof(struct timeval));
-
-        printf("clientfd: %d, time_used: %d\n", clientfd, time_used);
-    }
-
     return clientfd;
 }
 
@@ -97,8 +125,6 @@ int recv_cb(int fd){
 
     int count = recv(fd, buffer+idx, BUFFER_LENGTH-idx, 0);
     if(count == 0){
-        //printf("clientfd %d disconnect!/n", fd);
-
         epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
         close(fd);
 
@@ -107,14 +133,10 @@ int recv_cb(int fd){
 
     connlist[fd].rlen += count;
 
-    memcpy(connlist[fd].wbuffer, connlist[fd].rbuffer, connlist[fd].rlen);
-    connlist[fd].wlen = connlist[fd].rlen;
-    //connlist[fd].rlen = 0;
-
-    //printf("clientfd: %d, buffer: %s\n", connlist[fd].fd, connlist[fd].rbuffer);
-
+	http_request(&connlist[fd]);
+	http_response(&connlist[fd]);
+ 
     set_event(fd, EPOLLOUT, 0);
-
     return count;
 }
 
@@ -162,8 +184,6 @@ int main(){
         set_event(sockfd, EPOLLIN, 1);
     }
 
-    gettimeofday(&zvoice_king, NULL);
-
     struct epoll_event events[1024] = {0};
 
     while(1){
@@ -174,11 +194,9 @@ int main(){
 
             if(events[i].events & EPOLLIN){
                 int count = connlist[connfd].recv_t.recv_callback(connfd);
-                //printf("receive <-- buffer: %s\n", connlist[connfd].rbuffer);
             }
             else if(events[i].events & EPOLLOUT){
                 int count = connlist[connfd].send_callback(connfd);    
-                //printf("send --> buffer: %s\n", connlist[connfd].wbuffer);
             }
         }
     }
